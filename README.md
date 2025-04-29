@@ -30,7 +30,7 @@ docker run -d \
   -v /etc/hosts:/etc/hosts \
   -v /path/to/config:/app/config \
   -v /path/to/logs:/app/logs \
-  -p 8080:8080 \
+  -p 23333:23333 \
   -e TZ=Asia/Shanghai \
   username/pt-accelerator:latest
 ```
@@ -52,7 +52,7 @@ services:
       - ./config:/app/config
       - ./logs:/app/logs
     ports:
-      - "8080:8080"
+      - "23333:23333"
 ```
 
 ### 2. 本地运行（开发/调试）
@@ -64,14 +64,14 @@ pip install -r requirements.txt
 # 启动服务
 bash start.sh
 # 或
-python -m uvicorn app.main:app --host 0.0.0.0 --port 8080
+python -m uvicorn app.main:app --host 0.0.0.0 --port 23333
 ```
 
 ---
 
 ## Web界面入口
 
-- 访问：http://your-ip:8080
+- 访问：http://your-ip:23333
 - 支持多用户同时操作，所有配置实时生效
 
 ---

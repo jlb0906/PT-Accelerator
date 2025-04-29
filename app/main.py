@@ -181,4 +181,4 @@ async def shutdown_event():
     logger.info("应用已关闭，调度器已停止")
 
 if __name__ == "__main__":
-    uvicorn.run("main:app", host="0.0.0.0", port=8080, reload=True)
+    uvicorn.run("main:app", host="0.0.0.0", port=23333, reload=True)

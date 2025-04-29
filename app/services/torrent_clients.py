@@ -310,7 +310,7 @@ class TorrentClientManager:
             try:
                 self.clients["qbittorrent"] = QBittorrentClient(
                     host=qb_config.get("host", "localhost"),
-                    port=qb_config.get("port", 8080),
+                    port=qb_config.get("port", 23333),
                     username=qb_config.get("username", ""),
                     password=qb_config.get("password", ""),
                     use_https=qb_config.get("use_https", False)

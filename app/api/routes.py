@@ -627,7 +627,7 @@ async def test_client_connection(
             from app.services.torrent_clients import QBittorrentClient
             client = QBittorrentClient(
                 host=client_config.get("host", "localhost"),
-                port=client_config.get("port", 8080),
+                port=client_config.get("port", 23333),
                 username=client_config.get("username", ""),
                 password=client_config.get("password", ""),
                 use_https=client_config.get("use_https", False)

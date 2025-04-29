@@ -1,16 +1,15 @@
 version: '3'
-
 services:
   pt-accelerator:
-    build: .
+    image: eternalcurse/pt-accelerator:latest   
     container_name: pt-accelerator
     restart: unless-stopped
     network_mode: host
     environment:
-      - TZ=Asia/Shanghai  
+      - TZ=Asia/Shanghai
     volumes:
       - /etc/hosts:/etc/hosts
       - ./config:/app/config
       - ./logs:/app/logs
     ports:
-      - "8080:8080" 
+      - "23333:23333"  
