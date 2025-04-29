@@ -1,0 +1,16 @@
+version: '3'
+
+services:
+  pt-accelerator:
+    build: .
+    container_name: pt-accelerator
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - TZ=Asia/Shanghai  
+    volumes:
+      - /etc/hosts:/etc/hosts
+      - ./config:/app/config
+      - ./logs:/app/logs
+    ports:
+      - "8080:8080" 

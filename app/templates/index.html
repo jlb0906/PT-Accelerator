@@ -1,0 +1,767 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PT-Accelerator</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.0/font/bootstrap-icons.css">
+    <style>
+        :root {
+            --primary-color: #4361ee;
+            --secondary-color: #3f37c9;
+            --success-color: #0bb85f;
+            --info-color: #4cc9f0;
+            --warning-color: #ffbe0b;
+            --danger-color: #ef233c;
+            --light-color: #f8f9fa;
+            --dark-color: #212529;
+            --body-bg: #f5f7fb;
+            --card-bg: #ffffff;
+            --border-radius: 0.5rem;
+        }
+        
+        body {
+            background-color: var(--body-bg);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            padding-top: 20px;
+            padding-bottom: 20px;
+        }
+        
+        .container {
+            max-width: 1200px;
+        }
+        
+        .app-header {
+            background: linear-gradient(135deg, var(--primary-color), var(--secondary-color));
+            color: white;
+            padding: 1.5rem 2rem;
+            border-radius: var(--border-radius);
+            margin-bottom: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .app-header h1 {
+            margin: 0;
+            font-size: 1.75rem;
+            font-weight: 600;
+        }
+        
+        .app-header p {
+            margin: 0.5rem 0 0;
+            opacity: 0.9;
+        }
+        
+        .nav-tabs {
+            border-bottom: none;
+            margin-bottom: 1rem;
+        }
+        
+        .nav-tabs .nav-link {
+            border: none;
+            padding: 0.75rem 1.25rem;
+            border-radius: var(--border-radius);
+            margin-right: 0.5rem;
+            font-weight: 500;
+            color: var(--dark-color);
+            transition: all 0.2s ease;
+        }
+        
+        .nav-tabs .nav-link:hover {
+            background-color: rgba(67, 97, 238, 0.1);
+            color: var(--primary-color);
+        }
+        
+        .nav-tabs .nav-link.active {
+            background-color: var(--primary-color);
+            color: white;
+        }
+        
+        .card {
+            border: none;
+            border-radius: var(--border-radius);
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.05);
+            margin-bottom: 1.5rem;
+            background-color: var(--card-bg);
+        }
+        
+        .card-header {
+            background-color: rgba(0, 0, 0, 0.02);
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            font-weight: 600;
+            padding: 1rem 1.25rem;
+        }
+        
+        .card-body {
+            padding: 1.25rem;
+        }
+        
+        .btn {
+            border-radius: 0.4rem;
+            padding: 0.5rem 1rem;
+            font-weight: 500;
+            transition: all 0.2s;
+        }
+        
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+        
+        .btn-success {
+            background-color: var(--success-color);
+            border-color: var(--success-color);
+        }
+        
+        .btn-info {
+            background-color: var(--info-color);
+            border-color: var(--info-color);
+            color: white;
+        }
+        
+        .btn-info:hover {
+            color: white;
+        }
+        
+        .table {
+            margin-bottom: 0;
+        }
+        
+        .table thead th {
+            border-top: none;
+            border-bottom: 1px solid rgba(0, 0, 0, 0.1);
+            font-weight: 600;
+            color: var(--dark-color);
+        }
+        
+        .table td {
+            vertical-align: middle;
+        }
+        
+        .form-check-input:checked {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        
+        .form-switch .form-check-input {
+            width: 2.5em;
+            height: 1.25em;
+        }
+        
+        .spinner-container {
+            display: inline-block;
+            margin-left: 10px;
+        }
+        
+        .hidden {
+            display: none;
+        }
+        
+        #logs {
+            height: 500px;
+            overflow-y: auto;
+            font-family: Consolas, Monaco, 'Andale Mono', monospace;
+            white-space: pre-wrap;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+        
+        .result-table {
+            margin-top: 20px;
+        }
+        
+        .action-btn {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .action-btn i {
+            margin-right: 0.35rem;
+        }
+        
+        .quick-action-card {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+        }
+        
+        .dashboard-status-card {
+            height: 100%;
+        }
+        
+        .status-badge {
+            padding: 0.25rem 0.5rem;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+        }
+        
+        .badge-running {
+            background-color: rgba(11, 184, 95, 0.1);
+            color: var(--success-color);
+        }
+        
+        .badge-stopped {
+            background-color: rgba(239, 35, 60, 0.1);
+            color: var(--danger-color);
+        }
+        
+        .table-actions {
+            display: flex;
+            gap: 0.5rem;
+        }
+        
+        .form-floating > .form-control {
+            padding-top: 1.625rem;
+            padding-bottom: 0.625rem;
+        }
+        
+        .form-floating > label {
+            padding: 1rem 0.75rem;
+        }
+        
+        #current-hosts {
+            max-height: 300px;
+            overflow-y: auto;
+            font-family: Consolas, Monaco, 'Andale Mono', monospace;
+            background-color: #f8f9fa;
+            padding: 15px;
+            border-radius: var(--border-radius);
+            font-size: 0.875rem;
+            line-height: 1.5;
+        }
+        
+        .modal-content {
+            border-radius: var(--border-radius);
+            border: none;
+            box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+        }
+        
+        .modal-header {
+            border-bottom: 1px solid rgba(0, 0, 0, 0.05);
+            padding: 1.25rem 1.5rem;
+        }
+        
+        .modal-body {
+            padding: 1.5rem;
+        }
+        
+        .modal-footer {
+            border-top: 1px solid rgba(0, 0, 0, 0.05);
+            padding: 1.25rem 1.5rem;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="app-header">
+            <h1><i class="bi bi-speedometer2 me-2"></i>PT-Accelerator</h1>
+            <p>优化您的PT站点连接，加速数据传输</p>
+        </div>
+        
+        <ul class="nav nav-tabs" id="mainTabs" role="tablist">
+            <li class="nav-item" role="presentation">
+                <button class="nav-link active" id="dashboard-tab" data-bs-toggle="tab" data-bs-target="#dashboard" type="button" role="tab" aria-controls="dashboard" aria-selected="true">
+                    <i class="bi bi-house-door me-1"></i>控制面板
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="trackers-tab" data-bs-toggle="tab" data-bs-target="#trackers" type="button" role="tab" aria-controls="trackers" aria-selected="false">
+                    <i class="bi bi-hdd-network me-1"></i>Tracker管理
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="hosts-tab" data-bs-toggle="tab" data-bs-target="#hosts" type="button" role="tab" aria-controls="hosts" aria-selected="false">
+                    <i class="bi bi-list-check me-1"></i>Hosts源管理
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="clients-tab" data-bs-toggle="tab" data-bs-target="#clients" type="button" role="tab" aria-controls="clients" aria-selected="false">
+                    <i class="bi bi-download me-1"></i>下载器管理
+                </button>
+            </li>
+            <li class="nav-item" role="presentation">
+                <button class="nav-link" id="logs-tab" data-bs-toggle="tab" data-bs-target="#logs-panel" type="button" role="tab" aria-controls="logs-panel" aria-selected="false">
+                    <i class="bi bi-journal-text me-1"></i>日志
+                </button>
+            </li>
+        </ul>
+        
+        <div class="tab-content" id="mainTabsContent">
+            <!-- 控制面板 -->
+            <div class="tab-pane fade show active" id="dashboard" role="tabpanel" aria-labelledby="dashboard-tab">
+                <div class="row">
+                    <div class="col-md-7 mb-3">
+                        <div class="card dashboard-status-card">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <span><i class="bi bi-calendar-check me-2"></i>调度器状态</span>
+                                <span id="scheduler-status-badge" class="status-badge badge-running">加载中...</span>
+                            </div>
+                            <div class="card-body">
+                                <p id="scheduler-status" class="mb-2">加载中...</p>
+                                <table class="table table-sm">
+                                    <thead>
+                                        <tr>
+                                            <th>任务名称</th>
+                                            <th>下次执行时间</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="scheduler-jobs">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-5 mb-3">
+                        <div class="card quick-action-card">
+                            <div class="card-header">
+                                <i class="bi bi-lightning-charge me-2"></i>快速操作
+                            </div>
+                            <div class="card-body d-flex flex-column">
+                                <button class="btn btn-primary mb-2 action-btn" id="btn-run-cloudflare">
+                                    <i class="bi bi-play-circle"></i>运行IP优选与Hosts更新
+                                </button>
+                                <button class="btn btn-secondary action-btn" id="btn-update-hosts">
+                                    <i class="bi bi-arrow-repeat"></i>仅更新Hosts
+                                </button>
+                                <button class="btn btn-danger action-btn mt-2" id="btn-clear-and-update-hosts">
+                                    <i class="bi bi-trash"></i>清空Hosts文件并更新Hosts
+                                </button>
+                                <div id="action-result" class="mt-3"></div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- 定时任务配置 -->
+                <div class="card">
+                    <div class="card-header">
+                        <i class="bi bi-gear me-2"></i>定时任务配置
+                    </div>
+                    <div class="card-body">
+                        <form id="cloudflare-form" class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-check form-switch mb-3">
+                                    <input class="form-check-input" type="checkbox" id="cloudflare-enable" checked>
+                                    <label class="form-check-label" for="cloudflare-enable">启用定时任务</label>
+                                </div>
+                                
+                                <div class="form-floating mb-3">
+                                    <input type="text" class="form-control" id="cloudflare-cron" value="0 0 * * *" placeholder="CRON表达式">
+                                    <label for="cloudflare-cron">CRON表达式</label>
+                                    <div class="form-text">默认值: 0 0 * * * (每天零点执行IP优选与Hosts更新)</div>
+                                </div>
+                                
+                                <div class="col-12 mt-3">
+                                    <button type="submit" class="btn btn-primary" id="save-cloudflare-btn">
+                                        <i class="bi bi-save me-1"></i>保存配置
+                                        <span class="spinner-border spinner-border-sm d-none" id="cloudflare-spinner" role="status" aria-hidden="true"></span>
+                                    </button>
+                                    <span id="cloudflare-save-result" class="ms-2"></span>
+                                </div>
+                            </div>
+                            
+                            <div class="col-md-6">
+                                <div class="alert alert-info">
+                                    <i class="bi bi-info-circle me-2"></i>
+                                    <strong>CRON表达式说明:</strong>
+                                    <ul class="mb-0 ps-3 mt-1">
+                                        <li>分 时 日 月 周</li>
+                                        <li>0 0 * * * = 每天 00:00 执行</li>
+                                        <li>0 */6 * * * = 每6小时执行一次</li>
+                                        <li>0 0 * * 0 = 每周日 00:00 执行</li>
+                                    </ul>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Tracker管理 -->
+            <div class="tab-pane fade" id="trackers" role="tabpanel" aria-labelledby="trackers-tab">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="bi bi-hdd-network me-2"></i>Tracker管理</h5>
+                    <div class="d-flex align-items-center mb-3">
+                        <button class="btn btn-outline-warning me-2 action-btn" data-bs-toggle="modal" data-bs-target="#cloudflareDomainsModal" onclick="loadCloudflareDomains()"><i class="bi bi-shield-check"></i> Cloudflare白名单</button>
+                        <button class="btn btn-success me-2 action-btn" data-bs-toggle="modal" data-bs-target="#batchAddTrackerModal">
+                            <i class="bi bi-file-earmark-plus"></i>批量添加
+                        </button>
+                        <button class="btn btn-danger me-2 action-btn" id="btn-clear-all-trackers">
+                            <i class="bi bi-trash"></i>清空当前tracker
+                        </button>
+                        <button class="btn btn-info me-2 action-btn" id="btn-run-cfst-script">
+                            <i class="bi bi-play-circle"></i>运行IP优选
+                        </button>
+                        <button class="btn btn-primary action-btn" data-bs-toggle="modal" data-bs-target="#addTrackerModal">
+                            <i class="bi bi-plus-lg"></i>添加Tracker
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="card">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>名称</th>
+                                        <th>域名</th>
+                                        <th>IP</th>
+                                        <th>状态</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="trackers-table">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-4">
+                    <div class="card-header">
+                        <i class="bi bi-globe me-2"></i>批量更新IP
+                    </div>
+                    <div class="card-body">
+                        <div class="input-group">
+                            <input type="text" class="form-control" id="batch-update-ip" placeholder="输入IP地址，例如：104.16.91.215">
+                            <button class="btn btn-outline-primary action-btn" type="button" id="btn-update-all-trackers">
+                                <i class="bi bi-check2-all"></i>应用到所有Tracker
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Hosts源管理 -->
+            <div class="tab-pane fade" id="hosts" role="tabpanel" aria-labelledby="hosts-tab">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="bi bi-list-check me-2"></i>Hosts源管理</h5>
+                    <button class="btn btn-primary action-btn" data-bs-toggle="modal" data-bs-target="#addHostsSourceModal">
+                        <i class="bi bi-plus-lg"></i>添加Hosts源
+                    </button>
+                </div>
+                
+                <div class="card">
+                    <div class="card-body p-0">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>名称</th>
+                                        <th>URL</th>
+                                        <th>状态</th>
+                                        <th>操作</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="hosts-sources-table">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="card mt-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-file-text me-2"></i>当前Hosts文件内容</span>
+                    </div>
+                    <div class="card-body">
+                        <pre id="current-hosts"></pre>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- 下载器管理 -->
+            <div class="tab-pane fade" id="clients" role="tabpanel" aria-labelledby="clients-tab">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="bi bi-download me-2"></i>下载器管理</h5>
+                    <div>
+                        <button class="btn btn-success me-2 action-btn" id="btn-import-trackers">
+                            <i class="bi bi-cloud-download"></i>导入Tracker
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- qBittorrent配置 -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-hdd-rack me-2"></i>qBittorrent配置</span>
+                        <div>
+                            <button class="btn btn-sm btn-info me-2" id="test-qbittorrent-btn">
+                                <i class="bi bi-check-circle me-1"></i>测试连接
+                            </button>
+                            <div class="form-check form-switch d-inline-block ms-2">
+                                <input class="form-check-input" type="checkbox" id="qbittorrent-enable">
+                                <label class="form-check-label" for="qbittorrent-enable">启用</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <form id="qbittorrent-form" class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-floating mb-3">
+                                    <input type="text" class="form-control" id="qbittorrent-host" placeholder="主机地址">
+                                    <label for="qbittorrent-host">主机地址</label>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-floating mb-3">
+                                    <input type="number" class="form-control" id="qbittorrent-port" placeholder="端口">
+                                    <label for="qbittorrent-port">端口</label>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-check form-switch mt-3">
+                                    <input class="form-check-input" type="checkbox" id="qbittorrent-https">
+                                    <label class="form-check-label" for="qbittorrent-https">使用HTTPS</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating mb-3">
+                                    <input type="text" class="form-control" id="qbittorrent-username" placeholder="用户名">
+                                    <label for="qbittorrent-username">用户名</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating mb-3">
+                                    <input type="password" class="form-control" id="qbittorrent-password" placeholder="密码">
+                                    <label for="qbittorrent-password">密码</label>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <!-- Transmission配置 -->
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span><i class="bi bi-hdd-rack me-2"></i>Transmission配置</span>
+                        <div>
+                            <button class="btn btn-sm btn-info me-2" id="test-transmission-btn">
+                                <i class="bi bi-check-circle me-1"></i>测试连接
+                            </button>
+                            <div class="form-check form-switch d-inline-block ms-2">
+                                <input class="form-check-input" type="checkbox" id="transmission-enable">
+                                <label class="form-check-label" for="transmission-enable">启用</label>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="card-body">
+                        <form id="transmission-form" class="row g-3">
+                            <div class="col-md-6">
+                                <div class="form-floating mb-3">
+                                    <input type="text" class="form-control" id="transmission-host" placeholder="主机地址">
+                                    <label for="transmission-host">主机地址</label>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-floating mb-3">
+                                    <input type="number" class="form-control" id="transmission-port" placeholder="端口">
+                                    <label for="transmission-port">端口</label>
+                                </div>
+                            </div>
+                            <div class="col-md-3">
+                                <div class="form-check form-switch mt-3">
+                                    <input class="form-check-input" type="checkbox" id="transmission-https">
+                                    <label class="form-check-label" for="transmission-https">使用HTTPS</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating mb-3">
+                                    <input type="text" class="form-control" id="transmission-username" placeholder="用户名">
+                                    <label for="transmission-username">用户名</label>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-floating mb-3">
+                                    <input type="password" class="form-control" id="transmission-password" placeholder="密码">
+                                    <label for="transmission-password">密码</label>
+                                </div>
+                            </div>
+                            <div class="col-md-12">
+                                <div class="form-floating mb-3">
+                                    <input type="text" class="form-control" id="transmission-path" placeholder="RPC路径" value="/transmission/rpc">
+                                    <label for="transmission-path">RPC路径</label>
+                                </div>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+                
+                <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                    <button class="btn btn-primary" id="save-clients-btn">
+                        <i class="bi bi-save me-1"></i>保存下载器配置
+                    </button>
+                </div>
+            </div>
+            
+            <!-- 日志 -->
+            <div class="tab-pane fade" id="logs-panel" role="tabpanel" aria-labelledby="logs-tab">
+                <div class="d-flex justify-content-between align-items-center mb-3">
+                    <h5 class="mb-0"><i class="bi bi-journal-text me-2"></i>系统日志</h5>
+                    <button id="refresh-logs" class="btn btn-secondary action-btn">
+                        <i class="bi bi-arrow-clockwise me-1"></i>刷新日志
+                    </button>
+                </div>
+                <div class="card">
+                    <div class="card-body">
+                        <pre id="logs"></pre>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 进度提示模态框 -->
+    <div class="modal fade" id="progressModal" tabindex="-1" aria-labelledby="progressModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="progressModalLabel"><i class="bi bi-hourglass-split me-2"></i>操作进行中</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body text-center">
+                    <div class="mb-3" id="progress-message">请稍候，操作正在进行中...</div>
+                    <div class="d-flex justify-content-center align-items-center" style="height: 60px;">
+                        <div class="spinner-border text-primary" role="status" style="width: 2.5rem; height: 2.5rem;">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 添加Tracker模态框 -->
+    <div class="modal fade" id="addTrackerModal" tabindex="-1" aria-labelledby="addTrackerModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addTrackerModalLabel"><i class="bi bi-plus-circle me-2"></i>添加Tracker</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="add-tracker-form">
+                        <div class="form-floating mb-3">
+                            <input type="text" class="form-control" id="tracker-name" required placeholder="名称">
+                            <label for="tracker-name">名称</label>
+                        </div>
+                        <div class="form-floating mb-3">
+                            <input type="text" class="form-control" id="tracker-domain" required placeholder="域名">
+                            <label for="tracker-domain">域名</label>
+                            <div class="form-text">例如: example.com</div>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="tracker-enable" checked>
+                            <label class="form-check-label" for="tracker-enable">启用</label>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="tracker-force-cloudflare">
+                            <label class="form-check-label" for="tracker-force-cloudflare">强制标记为Cloudflare（加入白名单）</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="save-tracker">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 添加Hosts源模态框 -->
+    <div class="modal fade" id="addHostsSourceModal" tabindex="-1" aria-labelledby="addHostsSourceModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="addHostsSourceModalLabel"><i class="bi bi-plus-circle me-2"></i>添加Hosts源</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="add-hosts-source-form">
+                        <div class="form-floating mb-3">
+                            <input type="text" class="form-control" id="hosts-source-name" required placeholder="名称">
+                            <label for="hosts-source-name">名称</label>
+                        </div>
+                        <div class="form-floating mb-3">
+                            <input type="url" class="form-control" id="hosts-source-url" required placeholder="URL">
+                            <label for="hosts-source-url">URL</label>
+                            <div class="form-text">例如: https://example.com/hosts</div>
+                        </div>
+                        <div class="form-check form-switch mb-3">
+                            <input class="form-check-input" type="checkbox" id="hosts-source-enable" checked>
+                            <label class="form-check-label" for="hosts-source-enable">启用</label>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="save-hosts-source">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- 批量添加Tracker模态框 -->
+    <div class="modal fade" id="batchAddTrackerModal" tabindex="-1" aria-labelledby="batchAddTrackerModalLabel" aria-hidden="true">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="batchAddTrackerModalLabel"><i class="bi bi-file-earmark-plus me-2"></i>批量添加PT站点</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <form id="batch-add-tracker-form">
+                        <div class="mb-3">
+                            <label for="tracker-domains" class="form-label">域名列表（每行一个域名）</label>
+                            <textarea class="form-control" id="tracker-domains" rows="10" placeholder="example.com&#10;example.org"></textarea>
+                            <div class="form-text">批量添加的域名将使用当前优选的Cloudflare IP，如果没有优选结果，将使用默认IP：104.16.91.215</div>
+                        </div>
+                    </form>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">取消</button>
+                    <button type="button" class="btn btn-primary" id="save-batch-trackers">保存</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Cloudflare白名单管理面板 -->
+    <div class="modal fade" id="cloudflareDomainsModal" tabindex="-1" aria-labelledby="cloudflareDomainsModalLabel" aria-hidden="true">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title" id="cloudflareDomainsModalLabel"><i class="bi bi-shield-check me-2"></i>Cloudflare白名单管理</h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+                </div>
+                <div class="modal-body">
+                    <div class="input-group mb-3">
+                        <input type="text" class="form-control" id="cloudflare-domain-input" placeholder="输入域名">
+                        <button class="btn btn-primary" type="button" onclick="addCloudflareDomain()">添加</button>
+                    </div>
+                    <ul class="list-group" id="cloudflare-domains-list"></ul>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Toast容器 -->
+    <div class="toast-container position-fixed top-0 end-0 p-3"></div>
+    
+    <script src="https://cdn.jsdelivr.net/npm/jquery@3.7.1/dist/jquery.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="/static/js/main.js"></script>
+    <script src="/static/js/torrent_clients.js"></script>
+</body>
+</html>
