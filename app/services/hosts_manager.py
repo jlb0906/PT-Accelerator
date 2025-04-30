@@ -72,8 +72,11 @@ class HostsManager:
         }
         
     def update_config(self, config: Dict[str, Any]):
-        """更新配置"""
+        """更新配置，并同步Cloudflare白名单集合"""
         self.config = config
+        # 自动同步Cloudflare白名单集合
+        cf_domains_from_config = self.config.get('cloudflare_domains', [])
+        self.cf_domains = set(cf_domains_from_config) if isinstance(cf_domains_from_config, list) else set([cf_domains_from_config])
         
     def read_system_hosts(self) -> List[str]:
         """读取系统hosts文件内容"""
@@ -683,6 +686,10 @@ class HostsManager:
             self.task_status = {"status": "done", "message": f"Cloudflare优选完成！IP: {best_ip}，已更新 {len(filtered_trackers)} 个Tracker和 {total_entries} 条hosts记录"}
             self.task_running = False
             logger.info("已完成hosts文件更新")
+            if self.pending_update:
+                logger.info("检测到pending_update标记，自动补偿执行一次update_hosts")
+                self.pending_update = False
+                self.update_hosts()
             return True
         except Exception as e:
             error_msg = f"严格串行流程执行失败: {str(e)}"

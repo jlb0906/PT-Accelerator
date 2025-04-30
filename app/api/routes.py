@@ -223,6 +223,8 @@ async def add_cloudflare_domain(domain: str = Query(..., description="要添加�
         app.main.config = config
     except Exception:
         pass
+    # 新增：白名单变更后自动更新hosts
+    hosts_manager.update_hosts()
     return {"message": f"已添加 {domain} 到Cloudflare白名单", "cloudflare_domains": list(domains)}
 
 @router.delete("/cloudflare-domains")
@@ -240,6 +242,8 @@ async def delete_cloudflare_domain(domain: str = Query(..., description="要删�
         app.main.config = config
     except Exception:
         pass
+    # 新增：白名单变更后自动更新hosts
+    hosts_manager.update_hosts()
     return {"message": f"已从Cloudflare白名单移除 {domain}", "cloudflare_domains": list(domains)}
 
 # 修改添加tracker接口，支持force_cloudflare参数
@@ -282,7 +286,11 @@ async def add_tracker(
         with open(CONFIG_PATH, 'w') as f:
             yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
         hosts_manager.update_config(config)
-        background_tasks.add_task(hosts_manager.update_hosts)
+        # 新增：如force_cloudflare为True，自动更新hosts，确保白名单和tracker同步生效
+        if force_cloudflare:
+            hosts_manager.update_hosts()
+        else:
+            background_tasks.add_task(hosts_manager.update_hosts)
         try:
             import app.main
             app.main.config = config
