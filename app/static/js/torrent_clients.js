@@ -38,7 +38,7 @@ function loadTorrentClientsConfig() {
             const qbConfig = clientsConfig.qbittorrent || {};
             $("#qbittorrent-enable").prop("checked", qbConfig.enable || false);
             $("#qbittorrent-host").val(qbConfig.host || "localhost");
-            $("#qbittorrent-port").val(qbConfig.port || 23333);
+            $("#qbittorrent-port").val(qbConfig.port || 8080);
             $("#qbittorrent-username").val(qbConfig.username || "");
             $("#qbittorrent-password").val(qbConfig.password || "");
             $("#qbittorrent-https").prop("checked", qbConfig.use_https || false);

@@ -65,17 +65,17 @@ DEFAULT_CONFIG = {
             "enable": True
         },
         {
-            "name": "TMDB（GitHub源套代理）",
+            "name": "TMDB（GitHub源1）",
             "url": "https://ghfast.top/https://raw.githubusercontent.com/cnwikee/CheckTMDB/refs/heads/main/Tmdb_host_ipv4",
             "enable": True
         },
         {
-            "name": "TMDB（GitHub源2套代理）",
+            "name": "TMDB（GitHub源2）",
             "url": "https://ghfast.top/https://raw.githubusercontent.com/ChenXinBest/hosts_check/refs/heads/master/hosts.txt",
             "enable": True
         },
         {
-            "name": "GitHub&TMDB（GitHub源3套代理）",
+            "name": "GitHub&TMDB（GitHub源3）",
             "url": "https://ghfast.top/https://raw.githubusercontent.com/kekylin/hosts/main/hosts",
             "enable": True
         }

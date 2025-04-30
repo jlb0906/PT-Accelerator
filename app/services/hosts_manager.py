@@ -13,6 +13,7 @@ import yaml
 import re
 import socket
 import urllib3
+import json
 
 logger = logging.getLogger(__name__)
 
@@ -310,6 +311,10 @@ class HostsManager:
                 for tracker in self.config["trackers"]:
                     if tracker.get("enable") and tracker.get("domain"):
                         tracker_domains.add(tracker["domain"])
+            merged_hosts_backup = self._load_merged_hosts_backup()
+            backup_domains = set(merged_hosts_backup.keys())
+            current_domains = set()
+            abnormal_sources = set()
             if self.config.get("hosts_sources"):
                 total_sources = len([s for s in self.config["hosts_sources"] if s.get("enable") and s.get("url") and s.get("name")])
                 logger.info(f"开始处理 {total_sources} 个外部hosts源")
@@ -321,12 +326,15 @@ class HostsManager:
                         logger.info(f"正在处理hosts源 ({i+1}/{total_sources}): {source_name}")
                         source_entries = self._fetch_hosts_source(source["url"])
                         logger.info(f"获取hosts源 {source_name} 完成，返回 {len(source_entries)} 条记录，耗时 {time.time() - source_start_time:.2f} 秒")
+                        if len(source_entries) < 5:
+                            abnormal_sources.add(source_name)
                         entry_process_start = time.time()
                         entry_count = 0
                         for ip, domain in source_entries:
                             if domain in tracker_domains:
                                 continue
                             domain_ip_candidates.setdefault(domain, set()).add(ip)
+                            current_domains.add(domain)
                             entry_count += 1
                         logger.info(f"处理hosts源 {source_name} 的 {entry_count} 条记录完成，耗时 {time.time() - entry_process_start:.2f} 秒")
             # 4. 处理历史IP记录作为兜底（只收集，不检测）
@@ -334,12 +342,23 @@ class HostsManager:
                 if domain in tracker_domains:
                     continue
                 domain_ip_candidates.setdefault(domain, set()).add(ip)
+                current_domains.add(domain)
+            # 4.5 智能兜底：对比备份，找出本次丢失的域名
+            lost_domains = backup_domains - current_domains
+            for lost_domain in lost_domains:
+                lost_ip = merged_hosts_backup[lost_domain]
+                if self._dns_check(lost_domain, lost_ip):
+                    domain_ip_candidates.setdefault(lost_domain, set()).add(lost_ip)
+                    logger.warning(f"[兜底保留] 域名 {lost_domain} 本次未被任何源收录，但DNS检测有效，保留上次IP: {lost_ip}")
+                else:
+                    logger.warning(f"[兜底丢弃] 域名 {lost_domain} 本次未被任何源收录，且DNS检测无效，丢弃上次IP: {lost_ip}")
             # 5. 对每个域名的所有IP统一检测连通性和延迟，选出最佳IP
             domain_ip_latency = {}
             log_lines = []
+            merged_dict = {}
             for domain, ip_set in domain_ip_candidates.items():
                 if is_blacklisted(domain):
-                    continue  # 最终合并时再次过滤黑名单
+                    continue
                 best_ip = None
                 best_latency = None
                 ip_results = []
@@ -351,10 +370,12 @@ class HostsManager:
                         best_latency = latency
                 if best_ip:
                     domain_ip_latency[domain] = (best_ip, best_latency)
+                    merged_dict[domain] = best_ip
                     log_lines.append(f"域名 {domain} 选用IP: {best_ip}，延迟: {best_latency:.2f} ms")
                 else:
                     ip = next(iter(ip_set))
                     domain_ip_latency[domain] = (ip, 999.0)
+                    merged_dict[domain] = ip
                     log_lines.append(f"域名 {domain} 所有IP不可达，兜底选用: {ip}")
             # 6. 生成最终条目
             self.task_status = {"status": "running", "message": "正在生成最终hosts条目"}
@@ -374,6 +395,8 @@ class HostsManager:
             logger.info("=== 域名优选IP结果汇总 ===")
             for line in log_lines:
                 logger.info(line)
+            # 9. 合并完成后更新备份
+            self._save_merged_hosts_backup(merged_dict)
             self.task_status = {"status": "done", "message": f"已完成hosts更新，添加了{total_entries}条记录"}
             self.task_running = False
             if self.pending_update:
@@ -1308,4 +1331,29 @@ class HostsManager:
             logger.debug(f"[Cloudflare检测] HTTP检测异常: {str(e)}")
             
         return False
+
+    def _load_merged_hosts_backup(self):
+        backup_path = os.path.join("config", "merged_hosts_backup.json")
+        if os.path.exists(backup_path):
+            try:
+                with open(backup_path, "r", encoding="utf-8") as f:
+                    return json.load(f)
+            except Exception as e:
+                logger.warning(f"读取MergedHosts备份失败: {e}")
+        return {}
+
+    def _save_merged_hosts_backup(self, merged_dict):
+        backup_path = os.path.join("config", "merged_hosts_backup.json")
+        try:
+            with open(backup_path, "w", encoding="utf-8") as f:
+                json.dump(merged_dict, f, ensure_ascii=False, indent=2)
+        except Exception as e:
+            logger.warning(f"写入MergedHosts备份失败: {e}")
+
+    def _dns_check(self, domain, ip):
+        try:
+            result = socket.gethostbyname(domain)
+            return result == ip
+        except Exception:
+            return False
  
