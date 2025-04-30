@@ -73,7 +73,7 @@ function saveTorrentClientsConfig() {
     const qbittorrentConfig = {
         enable: $("#qbittorrent-enable").prop("checked"),
         host: $("#qbittorrent-host").val(),
-        port: parseInt($("#qbittorrent-port").val()) || 23333,
+        port: parseInt($("#qbittorrent-port").val()) || 8080,
         username: $("#qbittorrent-username").val(),
         password: $("#qbittorrent-password").val(),
         use_https: $("#qbittorrent-https").prop("checked")
@@ -135,7 +135,7 @@ function testClientConnection(clientType) {
     if (clientType === "qbittorrent") {
         clientConfig = {
             host: $("#qbittorrent-host").val(),
-            port: parseInt($("#qbittorrent-port").val()) || 23333,
+            port: parseInt($("#qbittorrent-port").val()) || 8080,
             username: $("#qbittorrent-username").val(),
             password: $("#qbittorrent-password").val(),
             use_https: $("#qbittorrent-https").prop("checked")

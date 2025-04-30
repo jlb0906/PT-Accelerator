@@ -1,7 +1,6 @@
-version: '3'
 services:
   pt-accelerator:
-    image: eternalcurse/pt-accelerator:latest   
+    image: eternalcurse/pt-accelerator:latest
     container_name: pt-accelerator
     restart: unless-stopped
     network_mode: host
@@ -11,5 +10,3 @@ services:
       - /etc/hosts:/etc/hosts
       - ./config:/app/config
       - ./logs:/app/logs
-    ports:
-      - "23333:23333"  
