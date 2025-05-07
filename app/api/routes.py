@@ -209,7 +209,7 @@ async def get_cloudflare_domains():
     return {"cloudflare_domains": domains}
 
 @router.post("/cloudflare-domains")
-async def add_cloudflare_domain(domain: str = Query(..., description="要添加的Cloudflare域名")):
+async def add_cloudflare_domain(domain: str = Query(..., description="要添加的Cloudflare域名"), background_tasks: BackgroundTasks = Depends()):
     config = get_config()
     domains = set(config.get("cloudflare_domains", []))
     domains.add(domain.strip().lower())
@@ -223,12 +223,12 @@ async def add_cloudflare_domain(domain: str = Query(..., description="要添加�
         app.main.config = config
     except Exception:
         pass
-    # 新增：白名单变更后自动更新hosts
-    hosts_manager.update_hosts()
+    # 新增：白名单变更后自动异步更新hosts
+    background_tasks.add_task(hosts_manager.update_hosts)
     return {"message": f"已添加 {domain} 到Cloudflare白名单", "cloudflare_domains": list(domains)}
 
 @router.delete("/cloudflare-domains")
-async def delete_cloudflare_domain(domain: str = Query(..., description="要删除的Cloudflare域名")):
+async def delete_cloudflare_domain(domain: str = Query(..., description="要删除的Cloudflare域名"), background_tasks: BackgroundTasks = Depends()):
     config = get_config()
     domains = set(config.get("cloudflare_domains", []))
     domains.discard(domain.strip().lower())
@@ -242,8 +242,8 @@ async def delete_cloudflare_domain(domain: str = Query(..., description="要删�
         app.main.config = config
     except Exception:
         pass
-    # 新增：白名单变更后自动更新hosts
-    hosts_manager.update_hosts()
+    # 新增：白名单变更后自动异步更新hosts
+    background_tasks.add_task(hosts_manager.update_hosts)
     return {"message": f"已从Cloudflare白名单移除 {domain}", "cloudflare_domains": list(domains)}
 
 # 修改添加tracker接口，支持force_cloudflare参数
@@ -286,11 +286,8 @@ async def add_tracker(
         with open(CONFIG_PATH, 'w') as f:
             yaml.dump(config, f, default_flow_style=False, allow_unicode=True)
         hosts_manager.update_config(config)
-        # 新增：如force_cloudflare为True，自动更新hosts，确保白名单和tracker同步生效
-        if force_cloudflare:
-            hosts_manager.update_hosts()
-        else:
-            background_tasks.add_task(hosts_manager.update_hosts)
+        # 统一异步触发hosts更新，避免接口阻塞
+        background_tasks.add_task(hosts_manager.update_hosts)
         try:
             import app.main
             app.main.config = config

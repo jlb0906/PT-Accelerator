@@ -1342,4 +1342,25 @@ class HostsManager:
             return result == ip
         except Exception:
             return False
+
+    def _get_disabled_tracker_domains(self):
+        """获取所有已禁用的tracker域名"""
+        disabled_domains = set()
+        trackers = self.config.get('trackers', [])
+        for t in trackers:
+            if not t.get('enable', True) and t.get('domain'):
+                disabled_domains.add(t['domain'].strip().lower())
+        return disabled_domains
+
+    def _merge_hosts(self, ...):
+        # ... existing code ...
+        # 获取所有已禁用的tracker域名
+        disabled_domains = self._get_disabled_tracker_domains()
+        # ... existing code ...
+        # 兜底逻辑部分，丢失条目时：
+        for domain, ip in lost_entries.items():
+            if domain.strip().lower() in disabled_domains:
+                logger.info(f"[兜底跳过] 域名 {domain} 已被用户禁用，不参与兜底保留")
+                continue
+            # ...原有兜底检测与保留逻辑...
  
