@@ -348,7 +348,13 @@ class HostsManager:
                 current_domains.add(domain)
             # 4.5 智能兜底：对比备份，找出本次丢失的域名
             lost_domains = backup_domains - current_domains
+            # 获取已禁用的tracker域名
+            disabled_domains = self._get_disabled_tracker_domains()
             for lost_domain in lost_domains:
+                # 跳过已禁用的域名
+                if lost_domain.strip().lower() in disabled_domains:
+                    logger.info(f"[兜底跳过] 域名 {lost_domain} 已被用户禁用，不参与兜底保留")
+                    continue
                 lost_ip = merged_hosts_backup[lost_domain]
                 if self._dns_check(lost_domain, lost_ip):
                     domain_ip_candidates.setdefault(lost_domain, set()).add(lost_ip)
@@ -630,9 +636,9 @@ class HostsManager:
                             current_domains.add(domain)
                             entry_count += 1
                         logger.info(f"处理hosts源 {source_name} 的 {entry_count} 条记录完成，耗时 {time.time() - entry_process_start:.2f} 秒")
-            for domain, ip in self.domain_ip_history.items():
-                if domain in tracker_domains:
-                    continue
+                for domain, ip in self.domain_ip_history.items():
+                    if domain in tracker_domains:
+                        continue
                 domain_ip_candidates.setdefault(domain, set()).add(ip)
                 current_domains.add(domain)
             lost_domains = backup_domains - current_domains
@@ -667,11 +673,11 @@ class HostsManager:
                     domain_ip_latency[domain] = (ip, 999.0)
                     merged_dict[domain] = ip
                     log_lines.append(f"域名 {domain} 所有IP不可达，兜底选用: {ip}")
-            self.task_status = {"status": "running", "message": "正在生成最终hosts条目"}
-            logger.info("生成合并后的最终hosts条目")
-            merged_entries = [f"{ip}\t{domain}" for domain, (ip, latency) in domain_ip_latency.items()]
-            if merged_entries:
-                sections.append((self.source_start_mark % "MergedHosts", merged_entries, self.source_end_mark % ("MergedHosts", len(merged_entries))))
+                self.task_status = {"status": "running", "message": "正在生成最终hosts条目"}
+                logger.info("生成合并后的最终hosts条目")
+                merged_entries = [f"{ip}\t{domain}" for domain, (ip, latency) in domain_ip_latency.items()]
+                if merged_entries:
+                    sections.append((self.source_start_mark % "MergedHosts", merged_entries, self.source_end_mark % ("MergedHosts", len(merged_entries))))
             self.task_status = {"status": "running", "message": "正在更新系统hosts文件"}
             logger.info("开始更新系统hosts文件")
             update_start = time.time()
@@ -1352,15 +1358,5 @@ class HostsManager:
                 disabled_domains.add(t['domain'].strip().lower())
         return disabled_domains
 
-    def _merge_hosts(self, ...):
-        # ... existing code ...
-        # 获取所有已禁用的tracker域名
-        disabled_domains = self._get_disabled_tracker_domains()
-        # ... existing code ...
-        # 兜底逻辑部分，丢失条目时：
-        for domain, ip in lost_entries.items():
-            if domain.strip().lower() in disabled_domains:
-                logger.info(f"[兜底跳过] 域名 {domain} 已被用户禁用，不参与兜底保留")
-                continue
-            # ...原有兜底检测与保留逻辑...
+
  
