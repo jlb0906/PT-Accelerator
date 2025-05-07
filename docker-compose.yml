@@ -1,0 +1,12 @@
+services:
+  pt-accelerator:
+    image: eternalcurse/pt-accelerator:latest
+    container_name: pt-accelerator
+    restart: unless-stopped
+    network_mode: host
+    environment:
+      - TZ=Asia/Shanghai
+    volumes:
+      - /etc/hosts:/etc/hosts
+      - ./config:/app/config
+      - ./logs:/app/logs

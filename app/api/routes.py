@@ -209,7 +209,7 @@ async def get_cloudflare_domains():
     return {"cloudflare_domains": domains}
 
 @router.post("/cloudflare-domains")
-async def add_cloudflare_domain(domain: str = Query(..., description="要添加的Cloudflare域名"), background_tasks: BackgroundTasks = Depends()):
+async def add_cloudflare_domain(domain: str = Query(..., description="要添加的Cloudflare域名"), background_tasks: BackgroundTasks):
     config = get_config()
     domains = set(config.get("cloudflare_domains", []))
     domains.add(domain.strip().lower())
@@ -228,7 +228,7 @@ async def add_cloudflare_domain(domain: str = Query(..., description="要添加�
     return {"message": f"已添加 {domain} 到Cloudflare白名单", "cloudflare_domains": list(domains)}
 
 @router.delete("/cloudflare-domains")
-async def delete_cloudflare_domain(domain: str = Query(..., description="要删除的Cloudflare域名"), background_tasks: BackgroundTasks = Depends()):
+async def delete_cloudflare_domain(domain: str = Query(..., description="要删除的Cloudflare域名"), background_tasks: BackgroundTasks):
     config = get_config()
     domains = set(config.get("cloudflare_domains", []))
     domains.discard(domain.strip().lower())
@@ -695,26 +695,6 @@ async def save_clients_config_route(
     except Exception as e:
         logger.error(f"Error saving torrent clients config: {str(e)}", exc_info=True) # 添加日志和异常信息
         return {"success": False, "message": f"保存下载器配置失败: {str(e)}"}
-
-# 测试下载器连接
-@router.post("/test-client-connection")
-async def test_client_connection_route(data: dict):
-    client_type = data.get("client_type")
-    client_config = data.get("client_config")
-    logger.info(f"Received request to test {client_type} connection") # 添加日志
-    logger.debug(f"Client config for testing: {client_config}") # 添加详细配置日志
-    
-    if not client_type or not client_config:
-        logger.warning("Missing client_type or client_config in test request") # 添加日志
-        return {"success": False, "message": "请求参数不完整"}
-    
-    try:
-        success, message = await torrent_client_manager.test_connection(client_type, client_config)
-        logger.info(f"Test connection result for {client_type}: success={success}, message='{message}'") # 添加日志
-        return {"success": success, "message": message}
-    except Exception as e:
-        logger.error(f"Error testing {client_type} connection: {str(e)}", exc_info=True) # 添加日志和异常信息
-        return {"success": False, "message": f"测试连接时发生错误: {str(e)}"}
 
 # 从下载器导入Tracker
 @router.post("/import-trackers-from-clients")
