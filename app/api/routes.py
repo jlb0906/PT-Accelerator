@@ -45,12 +45,16 @@ def get_config():
     from app.main import config
     return config
 
-# 获取配置
+# 获取配置（前端拉取用，每次从文件读取）
 @router.get("/config")
 async def get_config_api():
-    """获取当前配置"""
-    config = get_config()
-    return config
+    """每次都从文件读取最新配置，防止内存与文件不同步导致tracker状态异常"""
+    if os.path.exists(CONFIG_PATH):
+        with open(CONFIG_PATH, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        return config
+    else:
+        return {}
 
 # 更新配置（CRON表达式校验）
 @router.post("/config")
@@ -209,7 +213,7 @@ async def get_cloudflare_domains():
     return {"cloudflare_domains": domains}
 
 @router.post("/cloudflare-domains")
-async def add_cloudflare_domain(domain: str = Query(..., description="要添加的Cloudflare域名"), background_tasks: BackgroundTasks):
+async def add_cloudflare_domain(background_tasks: BackgroundTasks, domain: str = Query(..., description="要添加的Cloudflare域名")):
     config = get_config()
     domains = set(config.get("cloudflare_domains", []))
     domains.add(domain.strip().lower())
@@ -228,7 +232,7 @@ async def add_cloudflare_domain(domain: str = Query(..., description="要添加�
     return {"message": f"已添加 {domain} 到Cloudflare白名单", "cloudflare_domains": list(domains)}
 
 @router.delete("/cloudflare-domains")
-async def delete_cloudflare_domain(domain: str = Query(..., description="要删除的Cloudflare域名"), background_tasks: BackgroundTasks):
+async def delete_cloudflare_domain(background_tasks: BackgroundTasks, domain: str = Query(..., description="要删除的Cloudflare域名")):
     config = get_config()
     domains = set(config.get("cloudflare_domains", []))
     domains.discard(domain.strip().lower())

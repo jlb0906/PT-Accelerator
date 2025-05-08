@@ -310,6 +310,7 @@ class HostsManager:
             # 3. 统一收集所有外部hosts源的所有(ip, domain)
             domain_ip_candidates = {}
             tracker_domains = set()
+            disabled_domains = self._get_disabled_tracker_domains()  # 新增：获取所有禁用tracker域名
             if self.config.get("trackers"):
                 for tracker in self.config["trackers"]:
                     if tracker.get("enable") and tracker.get("domain"):
@@ -334,7 +335,8 @@ class HostsManager:
                         entry_process_start = time.time()
                         entry_count = 0
                         for ip, domain in source_entries:
-                            if domain in tracker_domains:
+                            # 新增：跳过禁用tracker域名
+                            if domain in tracker_domains or domain.strip().lower() in disabled_domains:
                                 continue
                             domain_ip_candidates.setdefault(domain, set()).add(ip)
                             current_domains.add(domain)
@@ -342,7 +344,8 @@ class HostsManager:
                         logger.info(f"处理hosts源 {source_name} 的 {entry_count} 条记录完成，耗时 {time.time() - entry_process_start:.2f} 秒")
             # 4. 处理历史IP记录作为兜底（只收集，不检测）
             for domain, ip in self.domain_ip_history.items():
-                if domain in tracker_domains:
+                # 新增：跳过禁用tracker域名
+                if domain in tracker_domains or domain.strip().lower() in disabled_domains:
                     continue
                 domain_ip_candidates.setdefault(domain, set()).add(ip)
                 current_domains.add(domain)
@@ -386,13 +389,15 @@ class HostsManager:
                     domain_ip_latency[domain] = (ip, 999.0)
                     merged_dict[domain] = ip
                     log_lines.append(f"域名 {domain} 所有IP不可达，兜底选用: {ip}")
-            # 6. 生成最终条目
+            
+            # 批量处理完所有域名后，一次性生成最终hosts条目
             self.task_status = {"status": "running", "message": "正在生成最终hosts条目"}
             logger.info("生成合并后的最终hosts条目")
             merged_entries = [f"{ip}\t{domain}" for domain, (ip, latency) in domain_ip_latency.items()]
             if merged_entries:
                 sections.append((self.source_start_mark % "MergedHosts", merged_entries, self.source_end_mark % ("MergedHosts", len(merged_entries))))
-            # 7. 更新系统hosts文件
+            
+            # 6. 更新系统hosts文件
             self.task_status = {"status": "running", "message": "正在更新系统hosts文件"}
             logger.info("开始更新系统hosts文件")
             update_start = time.time()
@@ -400,11 +405,11 @@ class HostsManager:
             logger.info(f"更新系统hosts文件完成，耗时 {time.time() - update_start:.2f} 秒")
             total_entries = sum(len(entries) for _, entries, _ in sections)
             logger.info(f"成功更新hosts文件，添加了{total_entries}条记录，共{len(sections)}个分区")
-            # 8. 输出最终检测结果日志
+            # 7. 输出最终检测结果日志
             logger.info("=== 域名优选IP结果汇总 ===")
             for line in log_lines:
                 logger.info(line)
-            # 9. 合并完成后更新备份
+            # 8. 合并完成后更新备份
             self._save_merged_hosts_backup(merged_dict)
             self.task_status = {"status": "done", "message": f"已完成hosts更新，添加了{total_entries}条记录"}
             self.task_running = False
@@ -433,30 +438,24 @@ class HostsManager:
             return "/etc/hosts"
     
     def _update_system_hosts_with_sections(self, sections: List[Tuple[str, List[str], str]]):
-        """更新系统hosts文件，保持分段格式"""
+        """更新系统hosts文件，保持分段格式，彻底移除所有PT-Accelerator分区，防止分区重复"""
         hosts_path = self._get_hosts_path()
-        
         # 读取当前hosts文件
         with open(hosts_path, 'r') as f:
             content = f.read()
-        
-        # 移除之前的PT-Accelerator条目
-        if self.start_mark in content and self.end_mark in content:
+        # 循环移除所有PT-Accelerator分区，防止历史残留
+        while self.start_mark in content and self.end_mark in content:
             start_pos = content.find(self.start_mark)
             end_pos = content.find(self.end_mark) + len(self.end_mark)
             content = content[:start_pos] + content[end_pos:]
-        
         # 添加新的条目，保持分段格式
         new_content = content.rstrip() + "\n\n" + self.start_mark + "\n"
-        
         for start_mark, entries, end_mark in sections:
             new_content += start_mark + "\n"
             for entry in entries:
                 new_content += entry + "\n"
             new_content += end_mark + "\n"
-        
         new_content += self.end_mark + "\n"
-        
         # 写入hosts文件
         with open(hosts_path, 'w') as f:
             f.write(new_content)
@@ -606,6 +605,7 @@ class HostsManager:
                 sections.append((self.pt_start_mark, pt_entries, self.pt_end_mark % len(pt_entries)))
             domain_ip_candidates = {}
             tracker_domains = set()
+            disabled_domains = self._get_disabled_tracker_domains()  # 新增：获取所有禁用tracker域名
             if self.config.get("trackers"):
                 for tracker in self.config["trackers"]:
                     if tracker.get("enable") and tracker.get("domain"):
@@ -630,17 +630,19 @@ class HostsManager:
                         entry_process_start = time.time()
                         entry_count = 0
                         for ip, domain in source_entries:
-                            if domain in tracker_domains:
+                            # 新增：跳过禁用tracker域名
+                            if domain in tracker_domains or domain.strip().lower() in disabled_domains:
                                 continue
                             domain_ip_candidates.setdefault(domain, set()).add(ip)
                             current_domains.add(domain)
                             entry_count += 1
                         logger.info(f"处理hosts源 {source_name} 的 {entry_count} 条记录完成，耗时 {time.time() - entry_process_start:.2f} 秒")
                 for domain, ip in self.domain_ip_history.items():
-                    if domain in tracker_domains:
+                    # 新增：跳过禁用tracker域名
+                    if domain in tracker_domains or domain.strip().lower() in disabled_domains:
                         continue
-                domain_ip_candidates.setdefault(domain, set()).add(ip)
-                current_domains.add(domain)
+                    domain_ip_candidates.setdefault(domain, set()).add(ip)
+                    current_domains.add(domain)
             lost_domains = backup_domains - current_domains
             for lost_domain in lost_domains:
                 lost_ip = merged_hosts_backup[lost_domain]
@@ -673,11 +675,14 @@ class HostsManager:
                     domain_ip_latency[domain] = (ip, 999.0)
                     merged_dict[domain] = ip
                     log_lines.append(f"域名 {domain} 所有IP不可达，兜底选用: {ip}")
-                self.task_status = {"status": "running", "message": "正在生成最终hosts条目"}
-                logger.info("生成合并后的最终hosts条目")
-                merged_entries = [f"{ip}\t{domain}" for domain, (ip, latency) in domain_ip_latency.items()]
-                if merged_entries:
-                    sections.append((self.source_start_mark % "MergedHosts", merged_entries, self.source_end_mark % ("MergedHosts", len(merged_entries))))
+                
+            # 批量处理完所有域名后，一次性生成最终hosts条目
+            self.task_status = {"status": "running", "message": "正在生成最终hosts条目"}
+            logger.info("生成合并后的最终hosts条目")
+            merged_entries = [f"{ip}\t{domain}" for domain, (ip, latency) in domain_ip_latency.items()]
+            if merged_entries:
+                sections.append((self.source_start_mark % "MergedHosts", merged_entries, self.source_end_mark % ("MergedHosts", len(merged_entries))))
+                
             self.task_status = {"status": "running", "message": "正在更新系统hosts文件"}
             logger.info("开始更新系统hosts文件")
             update_start = time.time()

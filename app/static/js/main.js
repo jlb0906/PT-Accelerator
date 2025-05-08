@@ -409,7 +409,7 @@ function loadTrackers() {
                             <div class="form-check form-switch">
                                 <input class="form-check-input tracker-switch" type="checkbox" 
                                     data-domain="${tracker.domain}" 
-                                    ${tracker.enable ? 'checked' : ''}>
+                                    ${tracker.enable === true ? 'checked' : ''}>
                             </div>
                         </td>
                         <td>
