@@ -30,18 +30,16 @@ docker run -d \
   -v /etc/hosts:/etc/hosts \
   -v /path/to/config:/app/config \
   -v /path/to/logs:/app/logs \
-  -p 23333:23333 \
   -e TZ=Asia/Shanghai \
-  username/pt-accelerator:latest
+  eternalcurse/pt-accelerator:latest
 ```
 
 或使用`docker-compose.yml`：
 
 ```yaml
-version: '3'
 services:
   pt-accelerator:
-    build: .
+    image: eternalcurse/pt-accelerator:latest
     container_name: pt-accelerator
     restart: unless-stopped
     network_mode: host
@@ -51,13 +49,21 @@ services:
       - /etc/hosts:/etc/hosts
       - ./config:/app/config
       - ./logs:/app/logs
-    ports:
-      - "23333:23333"
+```
+
+创建上述`docker-compose.yml`文件后，在同一目录下运行：
+
+```bash
+docker-compose up -d
 ```
 
 ### 2. 本地运行（开发/调试）
 
 ```bash
+# 克隆仓库
+git clone https://github.com/eternalcurse/PT-Accelerator.git
+cd PT-Accelerator
+
 # 安装依赖
 pip install -r requirements.txt
 
@@ -66,12 +72,12 @@ bash start.sh
 # 或
 python -m uvicorn app.main:app --host 0.0.0.0 --port 23333
 ```
-
 ---
 
 ## Web界面入口
 
 - 访问：http://your-ip:23333
+- 默认端口：23333（如需修改，请编辑Dockerfile和start.sh中的端口配置）
 - 支持多用户同时操作，所有配置实时生效
 
 ---
@@ -82,34 +88,63 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 23333
 - 查看调度器状态、定时任务、快速运行IP优选与Hosts更新
 - 一键仅更新Hosts
 - 一键清空Hosts并重建（彻底清理历史污染）
+- 监控IP优选和Hosts更新任务进度
 
 ### 2. Tracker管理
 - 批量添加、批量清空、单个删除、状态切换
 - 一键导入下载器Tracker（自动筛选Cloudflare站点）
 - 支持Cloudflare白名单管理
 - Tracker IP一键批量更新
+- 支持大量PT站点Tracker自动配置
 
 ### 3. Hosts源管理
 - 支持多条外部Hosts源，自动合并、去重、优选
 - 支持添加、删除、启用/禁用Hosts源
+- 内置多个优质Hosts源（GitHub和TMDB加速）
+- 自动定时更新所有Hosts源
 
 ### 4. 下载器管理
 - 支持qBittorrent、Transmission等主流下载器
 - 一键测试连接、保存配置、导入Tracker
+- 支持端口、用户名密码、HTTPS等完整配置
+- 自动验证连接有效性
 
 ### 5. 日志与监控
 - 实时查看系统日志、操作日志、任务进度
 - 支持刷新、自动滚动
+- 记录所有关键操作和错误信息
 
 ---
 
 ## 配置文件说明（config/config.yaml）
 
-- `cloudflare`：Cloudflare优选相关配置（定时任务、参数等）
-- `cloudflare_domains`：Cloudflare白名单域名列表
-- `hosts_sources`：外部Hosts源列表（支持自定义、增删、启用/禁用）
-- `torrent_clients`：下载器配置（支持多种类型）
-- `trackers`：PT站点Tracker列表（支持批量管理、自动导入、清空等）
+- `cloudflare`：Cloudflare优选相关配置
+  - `enable`：是否启用Cloudflare IP优选
+  - `cron`：定时任务Cron表达式（默认每天0点）
+  - `ipv6`：是否启用IPv6测速
+  - `additional_args`：CloudflareST额外参数
+  - `notify`：是否开启通知
+  
+- `cloudflare_domains`：Cloudflare白名单域名列表（需要优化的域名）
+
+- `hosts_sources`：外部Hosts源列表
+  - `name`：源名称
+  - `url`：源URL地址
+  - `enable`：是否启用
+
+- `torrent_clients`：下载器配置
+  - `qbittorrent`/`transmission`：不同类型下载器的配置
+    - `host`：下载器主机地址
+    - `port`：下载器端口
+    - `username`/`password`：登录凭据
+    - `use_https`：是否使用HTTPS
+    - `enable`：是否启用
+
+- `trackers`：PT站点Tracker列表
+  - `name`：Tracker名称
+  - `domain`：Tracker域名
+  - `ip`：优选的IP地址
+  - `enable`：是否启用
 
 **所有配置均可通过Web界面实时修改，无需手动编辑。**
 
@@ -119,6 +154,8 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 23333
 
 - 已内置CloudflareST二进制和测速脚本，自动调用，无需手动操作
 - 相关参数和测速数据文件（ip.txt/ipv6.txt）可在`CloudflareST_linux_amd64`目录下自定义
+- 自动筛选延迟低、速度快的优质CF节点IP
+- 支持IPv4/IPv6双协议测速
 - 参考：https://github.com/XIU2/CloudflareSpeedTest
 
 ---
@@ -137,20 +174,41 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 23333
 - **Q: 日志和配置如何持久化？**  
   A: 建议挂载`/app/config`和`/app/logs`到本地目录，防止容器重启丢失数据。
 
+- **Q: 如果系统使用了代理，会影响IP测速吗？**  
+  A: 会影响。建议在测速时临时关闭系统代理，确保获得准确的测速结果。
+
+- **Q: 项目如何更新？**  
+  A: 使用Docker部署的用户可以通过`docker pull eternalcurse/pt-accelerator:latest`拉取最新镜像，再重新创建容器。
+
+- **Q: 如何让Docker容器化的下载器（如qBittorrent）使用优化后的hosts？**  
+  A: 在下载器的Docker配置中，添加挂载`/etc/hosts:/etc/hosts:ro`（只读模式），示例：
+  ```yaml
+  services:
+    qbittorrent:
+      image: linuxserver/qbittorrent
+      # ... 其他配置 ...
+      volumes:
+        - /etc/hosts:/etc/hosts:ro  # 挂载hosts文件为只读
+        - ./config:/config
+        - ./downloads:/downloads
+  ```
+  注意：无论使用什么网络模式（host、bridge等），都需要显式挂载hosts文件，容器不会自动使用宿主机的hosts文件。当PT-Accelerator更新宿主机hosts文件时，容器内的hosts文件也会自动同步更新。
+
 ---
 
 ## 依赖与环境
 
 - Python 3.9+
-- FastAPI、Uvicorn、APScheduler、requests、jinja2、python-hosts、transmission-rpc、dnspython等（详见requirements.txt）
-- CloudflareST（已内置二进制）
+- FastAPI、Uvicorn、APScheduler、requests、jinja2
+- python-hosts、transmission-rpc、dnspython等（详见requirements.txt）
+- CloudflareST（已内置二进制，支持Linux平台）
 
 ---
 
 ## 参考项目
 
-- [CloudflareSpeedTest](https://github.com/XIU2/CloudflareSpeedTest)
-- [GitHub Hosts](https://gitlab.com/ineo6/hosts)
+- [CloudflareSpeedTest](https://github.com/XIU2/CloudflareSpeedTest) - 优质Cloudflare IP测速工具
+- [GitHub Hosts](https://gitlab.com/ineo6/hosts) - 优质GitHub加速hosts源
 
 ---
 
