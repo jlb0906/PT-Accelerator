@@ -5,7 +5,8 @@ services:
     restart: unless-stopped
     network_mode: host
     environment:
-      - TZ=Asia/Shanghai
+      TZ: Asia/Shanghai
+      APP_PORT: 23333
     volumes:
       - /etc/hosts:/etc/hosts
       - ./config:/app/config

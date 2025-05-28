@@ -15,6 +15,7 @@ import socket
 import urllib3
 import json
 
+
 logger = logging.getLogger(__name__)
 
 # 通用域名黑名单，可随时扩展
@@ -120,6 +121,8 @@ class HostsManager:
                 logger.info(f"[PT站点过滤] 以下{len(non_cf_domains)}个非Cloudflare站点未添加到hosts: {', '.join(non_cf_domains)}")
                 
         return entries
+    
+
     
     def _get_cache_path(self, url: str) -> str:
         """根据url生成本地缓存文件路径"""
@@ -248,14 +251,11 @@ class HostsManager:
         return None
     
     def update_hosts(self):
-        """更新hosts文件，合并所有源，去重同域名，仅保留延迟最低的IP，日志只输出最终结果"""
-        if self.task_running:
-            logger.info("已有hosts更新任务在运行，设置pending_update标记，等待本轮结束后自动补偿更新")
-            self.pending_update = True
-            return False
+        """更新hosts文件，合并PT站点、订阅源和自定义规则"""
         self.task_running = True
-        self.task_status = {"status": "running", "message": "正在更新hosts文件"}
-        self.pending_update = False
+        self.task_status = {"status": "running", "message": "开始更新hosts文件..."}
+        logger.info("开始更新hosts文件...")
+
         try:
             logger.info("开始更新hosts文件")
             ip_latency_cache = {}
@@ -296,19 +296,20 @@ class HostsManager:
                         logger.info("[历史清理] 同步更新全局config对象完成")
                     except Exception as e:
                         logger.error(f"[历史清理] 更新全局config对象失败: {str(e)}")
+
+            # 收集所有条目
+            all_entries: Dict[str, List[str]] = {}
             
-            # 2. 处理PT站点条目
-            start_time = time.time()
-            logger.info("开始处理PT站点条目")
-            self.task_status = {"status": "running", "message": "正在处理PT站点条目"}
+            # 2. PT站点条目
             pt_entries = self._collect_pt_entries()
-            logger.info(f"处理PT站点条目完成，共 {len(pt_entries)} 条，耗时 {time.time() - start_time:.2f} 秒")
-            sections = []
             if pt_entries:
-                sections.append((self.pt_start_mark, pt_entries, self.pt_end_mark % len(pt_entries)))
-            
-            # 3. 统一收集所有外部hosts源的所有(ip, domain)
-            domain_ip_candidates = {}
+                all_entries["pt_sites"] = pt_entries
+            logger.info(f"收集到 {len(pt_entries)} 条PT站点条目")
+
+
+
+            # 3. 订阅源条目
+            source_entries_map: Dict[str, List[str]] = {}
             tracker_domains = set()
             disabled_domains = self._get_disabled_tracker_domains()  # 新增：获取所有禁用tracker域名
             if self.config.get("trackers"):
@@ -338,7 +339,7 @@ class HostsManager:
                             # 新增：跳过禁用tracker域名
                             if domain in tracker_domains or domain.strip().lower() in disabled_domains:
                                 continue
-                            domain_ip_candidates.setdefault(domain, set()).add(ip)
+                            source_entries_map.setdefault(source_name, []).append(f"{ip}\t{domain}")
                             current_domains.add(domain)
                             entry_count += 1
                         logger.info(f"处理hosts源 {source_name} 的 {entry_count} 条记录完成，耗时 {time.time() - entry_process_start:.2f} 秒")
@@ -347,57 +348,94 @@ class HostsManager:
                 # 新增：跳过禁用tracker域名
                 if domain in tracker_domains or domain.strip().lower() in disabled_domains:
                     continue
-                domain_ip_candidates.setdefault(domain, set()).add(ip)
+                source_entries_map.setdefault("HistoryIPs", []).append(f"{ip}\t{domain}")
                 current_domains.add(domain)
             # 4.5 智能兜底：对比备份，找出本次丢失的域名
             lost_domains = backup_domains - current_domains
             # 获取已禁用的tracker域名
             disabled_domains = self._get_disabled_tracker_domains()
+            
             for lost_domain in lost_domains:
                 # 跳过已禁用的域名
                 if lost_domain.strip().lower() in disabled_domains:
                     logger.info(f"[兜底跳过] 域名 {lost_domain} 已被用户禁用，不参与兜底保留")
                     continue
+
+
+                
                 lost_ip = merged_hosts_backup[lost_domain]
                 if self._dns_check(lost_domain, lost_ip):
-                    domain_ip_candidates.setdefault(lost_domain, set()).add(lost_ip)
+                    source_entries_map.setdefault("LostHosts", []).append(f"{lost_ip}\t{lost_domain}")
                     logger.warning(f"[兜底保留] 域名 {lost_domain} 本次未被任何源收录，但DNS检测有效，保留上次IP: {lost_ip}")
                 else:
                     logger.warning(f"[兜底丢弃] 域名 {lost_domain} 本次未被任何源收录，且DNS检测无效，丢弃上次IP: {lost_ip}")
-            # 5. 对每个域名的所有IP统一检测连通性和延迟，选出最佳IP
-            domain_ip_latency = {}
-            log_lines = []
-            merged_dict = {}
-            for domain, ip_set in domain_ip_candidates.items():
-                if is_blacklisted(domain):
+            # 5. 按域名分组并选择最佳IP
+            self.task_status = {"status": "running", "message": "正在进行域名IP优选"}
+            domain_ips = {}
+            for source_name, entries in source_entries_map.items():
+                if is_blacklisted(source_name):
                     continue
+                for entry in entries:
+                    ip, domain = entry.split('\t', 1)
+                    if is_blacklisted(domain):
+                        continue
+                    if domain not in domain_ips:
+                        domain_ips[domain] = []
+                    domain_ips[domain].append((ip, source_name))
+            
+            # 为每个域名选择最佳IP
+            merged_dict = {}
+            log_lines = []
+            
+            for domain, ip_sources in domain_ips.items():
                 best_ip = None
                 best_latency = None
-                ip_results = []
+                ip_set = set()
+                for ip, source in ip_sources:
+                    ip_set.add(ip)
+                
                 for ip in ip_set:
                     latency = self._ping_ip(ip, cache=ip_latency_cache, domain=domain)
-                    ip_results.append((ip, latency))
                     if latency is not None and (best_latency is None or latency < best_latency):
                         best_ip = ip
                         best_latency = latency
+                
                 if best_ip:
-                    domain_ip_latency[domain] = (best_ip, best_latency)
                     merged_dict[domain] = best_ip
                     log_lines.append(f"域名 {domain} 选用IP: {best_ip}，延迟: {best_latency:.2f} ms")
                 else:
-                    ip = next(iter(ip_set))
-                    domain_ip_latency[domain] = (ip, 999.0)
-                    merged_dict[domain] = ip
-                    log_lines.append(f"域名 {domain} 所有IP不可达，兜底选用: {ip}")
+                    # 兜底选择第一个IP
+                    fallback_ip = next(iter(ip_set))
+                    merged_dict[domain] = fallback_ip
+                    log_lines.append(f"域名 {domain} 所有IP不可达，兜底选用: {fallback_ip}")
             
-            # 批量处理完所有域名后，一次性生成最终hosts条目
+            # 6. 生成最终hosts条目
             self.task_status = {"status": "running", "message": "正在生成最终hosts条目"}
             logger.info("生成合并后的最终hosts条目")
-            merged_entries = [f"{ip}\t{domain}" for domain, (ip, latency) in domain_ip_latency.items()]
-            if merged_entries:
-                sections.append((self.source_start_mark % "MergedHosts", merged_entries, self.source_end_mark % ("MergedHosts", len(merged_entries))))
+            sections = []
             
-            # 6. 更新系统hosts文件
+            # 添加PT站点
+            if "pt_sites" in all_entries:
+                sections.append((self.pt_start_mark, all_entries["pt_sites"], self.pt_end_mark % len(all_entries["pt_sites"])))
+            
+            # 生成合并后的hosts源条目（所有源合并为一个section）
+            merged_entries = []
+            for domain, best_ip in merged_dict.items():
+                if not is_blacklisted(domain):
+                    merged_entries.append(f"{best_ip}\t{domain}")
+            
+            # 按域名排序，保持输出稳定
+            merged_entries.sort(key=lambda x: x.split('\t')[1])
+            
+            # 添加合并后的hosts源section（保持与1.1.0版本兼容的名称）
+            if merged_entries:
+                sections.append((
+                    self.source_start_mark % "MergedHosts",
+                    merged_entries,
+                    self.source_end_mark % ("MergedHosts", len(merged_entries))
+                ))
+            
+            # 7. 更新系统hosts文件
             self.task_status = {"status": "running", "message": "正在更新系统hosts文件"}
             logger.info("开始更新系统hosts文件")
             update_start = time.time()
@@ -405,11 +443,11 @@ class HostsManager:
             logger.info(f"更新系统hosts文件完成，耗时 {time.time() - update_start:.2f} 秒")
             total_entries = sum(len(entries) for _, entries, _ in sections)
             logger.info(f"成功更新hosts文件，添加了{total_entries}条记录，共{len(sections)}个分区")
-            # 7. 输出最终检测结果日志
+            # 8. 输出最终检测结果日志
             logger.info("=== 域名优选IP结果汇总 ===")
             for line in log_lines:
                 logger.info(line)
-            # 8. 合并完成后更新备份
+            # 9. 合并完成后更新备份
             self._save_merged_hosts_backup(merged_dict)
             self.task_status = {"status": "done", "message": f"已完成hosts更新，添加了{total_entries}条记录"}
             self.task_running = False

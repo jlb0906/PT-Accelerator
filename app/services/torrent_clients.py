@@ -294,97 +294,230 @@ class TransmissionClient(TorrentClientBase):
 
 
 class TorrentClientManager:
-    """下载器客户端管理器"""
+    """下载器客户端管理器 - 支持多实例动态管理"""
     def __init__(self, config: Dict[str, Any]):
         self.config = config
         self.clients = {}
         self._init_clients()
     
     def _init_clients(self):
-        """初始化下载器客户端"""
-        clients_config = self.config.get("torrent_clients", {})
+        """初始化下载器客户端 - 支持多实例"""
+        # 清空现有客户端
+        self.clients = {}
         
-        # 初始化qBittorrent客户端
-        qb_config = clients_config.get("qbittorrent", {})
-        if qb_config.get("enable"):
-            try:
-                self.clients["qbittorrent"] = QBittorrentClient(
-                    host=qb_config.get("host", "localhost"),
-                    port=qb_config.get("port", 8080),
-                    username=qb_config.get("username", ""),
-                    password=qb_config.get("password", ""),
-                    use_https=qb_config.get("use_https", False)
-                )
-                logger.info("qBittorrent客户端初始化成功")
-            except Exception as e:
-                logger.error(f"qBittorrent客户端初始化失败: {str(e)}")
+        # 获取客户端配置列表
+        clients_config = self.config.get("torrent_clients", [])
         
-        # 初始化Transmission客户端
-        tr_config = clients_config.get("transmission", {})
-        if tr_config.get("enable"):
+        # 兼容旧配置格式，如果是字典则转换为数组
+        if isinstance(clients_config, dict):
+            logger.info("检测到旧版本配置格式，正在转换为新格式...")
+            converted_clients = []
+            
+            # 转换 qbittorrent 配置
+            if "qbittorrent" in clients_config:
+                qb_config = clients_config["qbittorrent"]
+                converted_clients.append({
+                    "id": "qb_migrated",
+                    "name": "qBittorrent (迁移)",
+                    "type": "qbittorrent",
+                    **qb_config
+                })
+            
+            # 转换 transmission 配置
+            if "transmission" in clients_config:
+                tr_config = clients_config["transmission"]
+                converted_clients.append({
+                    "id": "tr_migrated",
+                    "name": "Transmission (迁移)",
+                    "type": "transmission",
+                    **tr_config
+                })
+            
+            clients_config = converted_clients
+            # 更新配置
+            self.config["torrent_clients"] = clients_config
+            logger.info(f"配置转换完成，共转换 {len(converted_clients)} 个客户端")
+        
+        # 初始化所有客户端（包括禁用的，以便于测试连接）
+        for client_config in clients_config:
+                
+            client_id = client_config.get("id")
+            client_type = client_config.get("type")
+            
+            if not client_id or not client_type:
+                logger.warning(f"跳过无效的客户端配置: {client_config}")
+                continue
+            
             try:
-                self.clients["transmission"] = TransmissionClient(
-                    host=tr_config.get("host", "localhost"),
-                    port=tr_config.get("port", 9091),
-                    username=tr_config.get("username", ""),
-                    password=tr_config.get("password", ""),
-                    use_https=tr_config.get("use_https", False),
-                    path=tr_config.get("path", "/transmission/rpc")
-                )
-                logger.info("Transmission客户端初始化成功")
+                if client_type == "qbittorrent":
+                    client = QBittorrentClient(
+                        host=client_config.get("host", "localhost"),
+                        port=client_config.get("port", 8080),
+                        username=client_config.get("username", ""),
+                        password=client_config.get("password", ""),
+                        use_https=client_config.get("use_https", False)
+                    )
+                elif client_type == "transmission":
+                    client = TransmissionClient(
+                        host=client_config.get("host", "localhost"),
+                        port=client_config.get("port", 9091),
+                        username=client_config.get("username", ""),
+                        password=client_config.get("password", ""),
+                        use_https=client_config.get("use_https", False),
+                        path=client_config.get("path", "/transmission/rpc")
+                    )
+                else:
+                    logger.warning(f"不支持的客户端类型: {client_type}")
+                    continue
+                
+                self.clients[client_id] = {
+                    "client": client,
+                    "config": client_config
+                }
+                logger.info(f"初始化客户端成功: {client_config.get('name', client_id)} ({client_type})")
+                
             except Exception as e:
-                logger.error(f"Transmission客户端初始化失败: {str(e)}")
+                logger.error(f"初始化客户端失败: {client_config.get('name', client_id)} - {str(e)}")
     
     def update_config(self, config: Dict[str, Any]):
         """更新配置并重新初始化客户端"""
         self.config = config
-        self.clients = {}
         self._init_clients()
     
-    def test_client_connection(self, client_type: str) -> Dict[str, Any]:
-        """测试指定下载器客户端连接"""
-        client = self.clients.get(client_type)
-        if not client:
+    def test_client_connection(self, client_id: str) -> Dict[str, Any]:
+        """测试指定客户端连接"""
+        logger.info(f"正在测试客户端连接: {client_id}")
+        logger.debug(f"当前已初始化的客户端列表: {list(self.clients.keys())}")
+        
+        client_info = self.clients.get(client_id)
+        if not client_info:
+            logger.error(f"未找到客户端: {client_id}, 可用客户端: {list(self.clients.keys())}")
             return {
                 "success": False,
-                "message": f"未找到{client_type}客户端配置或客户端未启用"
+                "message": f"未找到客户端: {client_id}, 可能尚未保存或未启用"
             }
         
-        return client.test_connection()
+        try:
+            logger.info(f"开始测试客户端 {client_id} 的连接")
+            result = client_info["client"].test_connection()
+            logger.info(f"客户端 {client_id} 测试结果: {result}")
+            return result
+        except Exception as e:
+            logger.error(f"测试客户端连接失败: {client_id} - {str(e)}")
+            return {
+                "success": False,
+                "message": f"测试连接失败: {str(e)}"
+            }
+    
+    def test_client_connection_by_config(self, client_config: Dict[str, Any]) -> Dict[str, Any]:
+        """根据配置临时创建客户端并测试连接"""
+        client_type = client_config.get("type")
+        
+        if not client_type:
+            return {"success": False, "message": "缺少客户端类型"}
+        
+        try:
+            # 创建临时客户端进行测试
+            if client_type == "qbittorrent":
+                client = QBittorrentClient(
+                    host=client_config.get("host", "localhost"),
+                    port=client_config.get("port", 8080),
+                    username=client_config.get("username", ""),
+                    password=client_config.get("password", ""),
+                    use_https=client_config.get("use_https", False)
+                )
+            elif client_type == "transmission":
+                client = TransmissionClient(
+                    host=client_config.get("host", "localhost"),
+                    port=client_config.get("port", 9091),
+                    username=client_config.get("username", ""),
+                    password=client_config.get("password", ""),
+                    use_https=client_config.get("use_https", False),
+                    path=client_config.get("path", "/transmission/rpc")
+                )
+            else:
+                return {"success": False, "message": f"不支持的客户端类型: {client_type}"}
+            
+            # 测试连接
+            result = client.test_connection()
+            return result
+        except Exception as e:
+            logger.error(f"测试客户端连接失败: {str(e)}")
+            return {"success": False, "message": f"测试连接失败: {str(e)}"}
     
     def get_all_trackers(self) -> List[str]:
-        """获取所有下载器中的Tracker列表"""
+        """获取所有启用的下载器中的Tracker列表"""
         all_trackers = set()
         
-        for client_type, client in self.clients.items():
+        for client_id, client_info in self.clients.items():
+            # 只从启用的客户端获取Tracker
+            if not client_info["config"].get("enable", False):
+                continue
+                
             try:
-                trackers = client.get_trackers()
-                logger.info(f"从{client_type}获取到{len(trackers)}个Tracker")
+                client_name = client_info["config"].get("name", client_id)
+                trackers = client_info["client"].get_trackers()
+                logger.info(f"从 {client_name} 获取到 {len(trackers)} 个Tracker")
                 all_trackers.update(trackers)
             except Exception as e:
-                logger.error(f"从{client_type}获取Tracker失败: {str(e)}")
+                logger.error(f"从客户端 {client_id} 获取Tracker失败: {str(e)}")
         
         return list(all_trackers)
     
     def import_trackers_from_clients(self):
-        """自动从所有已启用下载器获取Tracker域名并返回，增加返回被过滤的非Cloudflare域名"""
+        """自动从所有已启用下载器获取Tracker域名并返回详细信息"""
         all_domains = set()
-        added_domains = []
-        filtered_domains = []
-        for client_type, client in self.clients.items():
+        client_results = {}
+        
+        for client_id, client_info in self.clients.items():
+            # 只从启用的客户端导入Tracker
+            if not client_info["config"].get("enable", False):
+                continue
+                
+            client_name = client_info["config"].get("name", client_id)
+            client_type = client_info["config"].get("type", "unknown")
+            
             try:
-                trackers = client.get_trackers()
-                for domain in trackers:
-                    if domain not in all_domains:
-                        all_domains.add(domain)
-                        added_domains.append(domain)
-                logger.info(f"从{client_type}获取到{len(trackers)}个Tracker域名")
+                trackers = client_info["client"].get_trackers()
+                client_results[client_id] = {
+                    "name": client_name,
+                    "type": client_type,
+                    "trackers": trackers,
+                    "count": len(trackers),
+                    "success": True
+                }
+                all_domains.update(trackers)
+                logger.info(f"从 {client_name} ({client_type}) 获取到 {len(trackers)} 个Tracker域名")
             except Exception as e:
-                logger.error(f"从{client_type}获取Tracker失败: {str(e)}")
-        # 新增：返回所有域名和被过滤的域名，便于后端日志和前端调试
+                client_results[client_id] = {
+                    "name": client_name,
+                    "type": client_type,
+                    "trackers": [],
+                    "count": 0,
+                    "success": False,
+                    "error": str(e)
+                }
+                logger.error(f"从 {client_name} ({client_type}) 获取Tracker失败: {str(e)}")
+        
+        total_count = len(all_domains)
         return {
-            "status": "success" if added_domains else "warning",
-            "message": f"成功导入 {len(added_domains)} 个Tracker域名" if added_domains else "未发现可导入的Tracker域名",
-            "added_domains": added_domains,
-            "filtered_domains": filtered_domains
+            "status": "success" if total_count > 0 else "warning",
+            "message": f"成功导入 {total_count} 个唯一Tracker域名" if total_count > 0 else "未发现可导入的Tracker域名",
+            "total_count": total_count,
+            "client_results": client_results,
+            "all_domains": list(all_domains)
         }
+    
+    def get_clients_info(self) -> List[Dict[str, Any]]:
+        """获取所有客户端信息"""
+        clients_info = []
+        for client_id, client_info in self.clients.items():
+            clients_info.append({
+                "id": client_id,
+                "name": client_info["config"].get("name", client_id),
+                "type": client_info["config"].get("type"),
+                "host": client_info["config"].get("host"),
+                "port": client_info["config"].get("port"),
+                "enabled": client_info["config"].get("enable", False)
+            })
+        return clients_info

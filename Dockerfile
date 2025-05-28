@@ -17,7 +17,9 @@ COPY . .
 RUN mkdir -p /app/config /app/logs
 
 # 暴露端口
-EXPOSE 23333
+ARG APP_PORT=23333
+ENV APP_PORT=${APP_PORT}
+EXPOSE ${APP_PORT}
 
 # 启动应用
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "23333"] 
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${APP_PORT}"]

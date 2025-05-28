@@ -6,6 +6,15 @@ log() {
     echo "$(date '+%Y-%m-%d %H:%M:%S') - $1"
 }
 
+# Debug: Print initial APP_PORT value from the environment
+log "DEBUG: Initial ENV APP_PORT: -->${APP_PORT}<--"
+
+# 设置默认端口，如果APP_PORT环境变量未设置，则使用23333
+APP_PORT=${APP_PORT:-23333}
+
+# Debug: Print APP_PORT value after script's default assignment
+log "DEBUG: Script APP_PORT after default: -->${APP_PORT}<--"
+
 log "PT-Accelerator 启动脚本开始运行..."
 
 # 创建必要的目录
@@ -45,7 +54,8 @@ fi
 
 # 启动应用
 log "启动应用..."
-python -m uvicorn app.main:app --host 0.0.0.0 --port 23333
+log "DEBUG: APP_PORT just before uvicorn: -->${APP_PORT}<--" # Added debug log
+python -m uvicorn app.main:app --host 0.0.0.0 --port "${APP_PORT}"
 
 # 注意：此行永远不会执行，因为uvicorn会保持运行状态
 log "应用已停止" 

@@ -11,6 +11,8 @@
 - **下载器一键导入**：支持qBittorrent、Transmission等主流下载器，自动导入Tracker列表并智能筛选Cloudflare站点。
 - **Hosts源多路合并**：内置多条GitHub/TMDB等Hosts源，自动合并、去重、优选，提升全局访问体验。
 - **Web可视化配置**：所有操作均可在现代化Web界面完成，支持定时任务、白名单、日志、配置等全方位管理。
+- **用户登录认证**：内置用户登录与鉴权机制，保障平台访问安全。
+- **多下载器实例支持**：支持同时连接和管理多个qBittorrent及Transmission下载器实例，集中控制更便捷。
 - **一键清空/重建**：支持一键清空所有Tracker、清空并重建hosts文件，彻底解决历史污染和遗留问题。
 - **日志与状态监控**：内置系统日志、任务进度、调度器状态等实时监控，方便排查和优化。
 - **极致兼容性**：支持Docker、原生Python环境，支持Linux/Windows/Mac，适配多种部署场景。
@@ -70,14 +72,27 @@ pip install -r requirements.txt
 # 启动服务
 bash start.sh
 # 或
-python -m uvicorn app.main:app --host 0.0.0.0 --port 23333
+python -m uvicorn app.main:app --host 0.0.0.0 --port ${APP_PORT:-23333}
 ```
 ---
 
 ## Web界面入口
 
-- 访问：http://your-ip:23333
-- 默认端口：23333（如需修改，请编辑Dockerfile和start.sh中的端口配置）
+- 访问：http://your-ip:<端口号>
+- 首次访问或根据配置，可能需要进行用户登录。
+- 默认端口：`23333`。可以通过以下方式修改：
+  - **Docker/Docker Compose**:
+    - 在 `docker-compose.yml` 文件中，为 `pt-accelerator` 服务的 `environment` 部分添加或修改 `APP_PORT` 的值。例如:
+      ```yaml
+      services:
+        pt-accelerator:
+          # ... other settings ...
+          environment:
+            - TZ=Asia/Shanghai
+            - APP_PORT=8080 # 设置自定义端口
+      ```
+    - 或者，在 `docker-compose.yml` 同级目录下创建 `.env` 文件并写入 `APP_PORT=8080`，这会覆盖 `docker-compose.yml` 中的默认设置（如果存在）。
+  - **本地运行**: 启动前设置 `APP_PORT` 环境变量 (例如 `export APP_PORT=8080 && bash start.sh`)，或者直接修改 `start.sh` 脚本中的默认端口。
 - 支持多用户同时操作，所有配置实时生效
 
 ---
@@ -104,7 +119,7 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 23333
 - 自动定时更新所有Hosts源
 
 ### 4. 下载器管理
-- 支持qBittorrent、Transmission等主流下载器
+- 支持添加和管理**多个**qBittorrent、Transmission等主流下载器实例，每个实例均可独立配置。
 - 一键测试连接、保存配置、导入Tracker
 - 支持端口、用户名密码、HTTPS等完整配置
 - 自动验证连接有效性
@@ -117,6 +132,11 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 23333
 ---
 
 ## 配置文件说明（config/config.yaml）
+
+- `auth`：用户认证配置 (新增)
+  - `enable`：是否启用用户认证 (例如 `true` 或 `false`)
+  - `username`：登录用户名
+  - `password`：登录密码 (建议存储哈希后的密码，具体请参照您的实现方式)
 
 - `cloudflare`：Cloudflare优选相关配置
   - `enable`：是否启用Cloudflare IP优选
@@ -132,13 +152,35 @@ python -m uvicorn app.main:app --host 0.0.0.0 --port 23333
   - `url`：源URL地址
   - `enable`：是否启用
 
-- `torrent_clients`：下载器配置
-  - `qbittorrent`/`transmission`：不同类型下载器的配置
+- `torrent_clients`：下载器配置列表 (支持多个实例)
+  - 每个下载器实例为一个列表项，包含以下字段：
+    - `name`: (必填) 用户为此下载器实例设定的唯一名称 (例如 `qb-main`, `tr-backup`)
+    - `type`: (必填) 下载器类型，可选值为 `qbittorrent` 或 `transmission`
     - `host`：下载器主机地址
     - `port`：下载器端口
     - `username`/`password`：登录凭据
-    - `use_https`：是否使用HTTPS
-    - `enable`：是否启用
+    - `use_https`：是否使用HTTPS (例如 `true` 或 `false`)
+    - `enable`：是否启用此下载器实例 (例如 `true` 或 `false`)
+  - 示例:
+    ```yaml
+    torrent_clients:
+      - name: qBittorrent主服务器
+        type: qbittorrent
+        host: localhost
+        port: 8080
+        username: admin
+        password: adminadmin
+        use_https: false
+        enable: true
+      - name: Transmission备用
+        type: transmission
+        host: 192.168.1.100
+        port: 9091
+        username: 
+        password: 
+        use_https: false
+        enable: true
+    ```
 
 - `trackers`：PT站点Tracker列表
   - `name`：Tracker名称

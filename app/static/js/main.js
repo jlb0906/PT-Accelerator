@@ -7,23 +7,14 @@ document.addEventListener('DOMContentLoaded', function() {
     loadHostsSources();
     loadLogs();
     loadCurrentHosts();
+    loadCustomAcceleratedSites();
     // 绑定事件
     bindEvents();
     enhanceInputValidation();
 });
 
 function bindEvents() {
-    // 下载器管理初始化（安全调用）
-    if (typeof initTorrentClientsUI === 'function') {
-        try {
-            console.log('初始化下载器管理界面');
-            initTorrentClientsUI();
-        } catch(e) {
-            console.warn('initTorrentClientsUI 执行异常:', e);
-        }
-    } else {
-        console.log('未定义initTorrentClientsUI，跳过下载器管理初始化');
-    }
+    // 下载器管理初始化已移至torrent_clients.js的DOMContentLoaded事件中，避免重复初始化
     // 运行CloudflareSpeedTest按钮事件
     const btnRunCloudflare = document.getElementById('btn-run-cloudflare');
     if (btnRunCloudflare) {
@@ -245,27 +236,6 @@ function bindEvents() {
             updateAllTrackersIp(ip);
         });
     }
-    // 导入tracker按钮事件（假设id为btn-import-trackers）
-    const btnImportTrackers = document.getElementById('btn-import-trackers');
-    if (btnImportTrackers) {
-        btnImportTrackers.addEventListener('click', function() {
-            this.disabled = true;
-            showToast('正在导入下载器Tracker，请耐心等待...', 'info', 12000);
-            fetchWithTimeout('/api/import-trackers-from-clients', { method: 'POST' }, 180000)
-                .then(response => response.json())
-                .then(data => {
-                    showToast(data.message || '导入完成', 'success', 10000);
-                    loadTrackers();
-                    loadCurrentHosts();
-                })
-                .catch(error => {
-                    showToast('导入Tracker失败: ' + error.message, 'danger', 10000);
-                })
-                .finally(() => {
-                    this.disabled = false;
-                });
-        });
-    }
     // 清空hosts并更新按钮
     const btnClearAndUpdateHosts = document.getElementById('btn-clear-and-update-hosts');
     if (btnClearAndUpdateHosts) {
@@ -309,6 +279,25 @@ function bindEvents() {
                 });
         });
     }
+    // ----- 自定义站点加速功能相关事件绑定 -----
+    const addCustomSiteBtn = document.getElementById('add-custom-site-btn');
+    if (addCustomSiteBtn) {
+        addCustomSiteBtn.addEventListener('click', addCustomAcceleratedSite);
+    }
+
+    const refreshCustomSitesBtn = document.getElementById('refresh-custom-sites-btn');
+    if (refreshCustomSitesBtn) {
+        refreshCustomSitesBtn.addEventListener('click', loadCustomAcceleratedSites);
+    }
+
+    // 监听自定义站点加速选项卡的显示事件
+    const customSitesTab = document.getElementById('custom-sites-tab');
+    if (customSitesTab) {
+        customSitesTab.addEventListener('shown.bs.tab', function (event) {
+            loadCustomAcceleratedSites();
+        });
+    }
+    // ----- 自定义站点加速功能相关事件绑定 END -----
 }
 
 // 加载控制面板数据
@@ -706,6 +695,12 @@ function deleteHostsSource(url) {
 // 只保留一份showToast实现，放在文件底部，所有调用都用此函数
 function showToast(message, type = 'info', delay = 8000) {
     console.log('显示Toast:', message, type);
+    
+    // 确保 delay 参数是数字类型
+    if (typeof delay !== 'number') {
+        delay = parseInt(delay, 10) || 8000;
+    }
+    
     // 如果已有相同内容的Toast，先关闭它
     const existingToasts = document.querySelectorAll('.toast');
     existingToasts.forEach(toast => {
@@ -1081,3 +1076,146 @@ window.removeCloudflareDomain = function(domain) {
             showToast('已移除Cloudflare白名单', 'success');
         });
 }
+
+// ----- 自定义站点加速功能 ----- 
+function loadCustomAcceleratedSites() {
+    const listElement = document.getElementById('custom-sites-list');
+    const loadingElement = document.getElementById('custom-sites-loading');
+
+    if (!listElement || !loadingElement) return;
+
+    loadingElement.style.display = 'block'; // 显示加载提示
+    // 清空现有列表项（除了加载提示）
+    while (listElement.firstChild && listElement.firstChild !== loadingElement) {
+        listElement.removeChild(listElement.firstChild);
+    }
+    
+    fetch('/api/custom-accelerated-sites')
+        .then(response => {
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            return response.json();
+        })
+        .then(sites => {
+            loadingElement.style.display = 'none'; // 隐藏加载提示
+            listElement.innerHTML = ''; // 彻底清空，包括可能残留的loading
+            if (sites.length === 0) {
+                listElement.innerHTML = '<li class="list-group-item text-center text-muted p-3">暂无自定义加速站点。</li>';
+                return;
+            }
+            sites.forEach(site => {
+                const listItem = document.createElement('li');
+                listItem.className = 'list-group-item d-flex justify-content-between align-items-center';
+                listItem.textContent = site;
+
+                const deleteBtn = document.createElement('button');
+                deleteBtn.className = 'btn btn-danger btn-sm';
+                deleteBtn.innerHTML = '<i class="bi bi-trash"></i> 删除';
+                deleteBtn.onclick = function() { deleteCustomAcceleratedSite(site); };
+
+                listItem.appendChild(deleteBtn);
+                listElement.appendChild(listItem);
+            });
+        })
+        .catch(error => {
+            loadingElement.style.display = 'none';
+            listElement.innerHTML = '<li class="list-group-item text-center text-danger p-3">加载站点列表失败，请稍后重试。</li>';
+            console.error('加载自定义加速站点列表失败:', error);
+            showToast('加载自定义站点列表失败: ' + error.message, 'danger');
+        });
+}
+
+function addCustomAcceleratedSite() {
+    const domainInput = document.getElementById('custom-site-domain-input');
+    const feedbackElement = document.getElementById('add-custom-site-feedback');
+    const domain = domainInput.value.trim();
+
+    if (!domain) {
+        showToast('请输入要加速的站点域名', 'warning');
+        domainInput.classList.add('is-invalid');
+        if (feedbackElement) feedbackElement.innerHTML = '<div class="text-danger">域名不能为空。</div>';
+        return;
+    }
+    // 简单的域名格式校验
+    const domainRegex = /^([a-zA-Z0-9]([a-zA-Z0-9\-]{0,61}[a-zA-Z0-9])?\.)+[a-zA-Z]{2,6}$/;
+    if (!domainRegex.test(domain)) {
+        showToast('域名格式无效，请输入正确的域名，例如：mysite.example.com', 'warning');
+        domainInput.classList.add('is-invalid');
+        if (feedbackElement) feedbackElement.innerHTML = '<div class="text-danger">域名格式无效。</div>';
+        return;
+    }
+    domainInput.classList.remove('is-invalid');
+    if (feedbackElement) feedbackElement.innerHTML = '';
+
+    const formData = new FormData();
+    formData.append('domain', domain);
+
+    const addBtn = document.getElementById('add-custom-site-btn');
+    const originalBtnText = addBtn.innerHTML;
+    addBtn.disabled = true;
+    addBtn.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> 添加中...';
+
+    fetch('/api/custom-accelerated-sites', {
+        method: 'POST',
+        body: formData
+    })
+    .then(response => {
+        if (response.status === 409) { // Conflict - Domain already exists
+            return response.json().then(err => { throw new Error(err.detail || '站点已存在'); });
+        }
+        if (!response.ok) {
+            return response.json().then(err => { throw new Error(err.detail || `HTTP error! status: ${response.status}`); });
+        }
+        return response.json();
+    })
+    .then(data => {
+        showSuccessModal('操作成功', data.message || `站点 ${domain} 已成功添加并触发hosts更新。`);
+        //showToast(data.message || `站点 ${domain} 已成功添加并触发hosts更新。`, 'success');
+        domainInput.value = ''; // 清空输入框
+        loadCustomAcceleratedSites(); // 刷新列表
+        loadCurrentHosts(); // 更新当前hosts显示
+    })
+    .catch(error => {
+        console.error('添加自定义加速站点失败:', error);
+        showErrorModal('添加失败', error.message || '添加站点时发生未知错误。');
+        //showToast('添加站点失败: ' + error.message, 'danger');
+        domainInput.classList.add('is-invalid');
+        if (feedbackElement) feedbackElement.innerHTML = `<div class="text-danger">${error.message}</div>`;
+    })
+    .finally(() => {
+        addBtn.disabled = false;
+        addBtn.innerHTML = originalBtnText;
+    });
+}
+
+function deleteCustomAcceleratedSite(domain) {
+    if (!confirm(`确定要删除加速站点 ${domain} 吗？`)) {
+        return;
+    }
+    showProgressModal(`正在删除站点 ${domain}...`);
+
+    fetch(`/api/custom-accelerated-sites/${encodeURIComponent(domain)}`, {
+        method: 'DELETE'
+    })
+    .then(response => {
+        if (!response.ok) {
+            return response.json().then(err => { throw new Error(err.detail || `HTTP error! status: ${response.status}`); });
+        }
+        return response.json();
+    })
+    .then(data => {
+        hideProgressModal();
+        showSuccessModal('操作成功', data.message || `站点 ${domain} 已成功删除并触发hosts更新。`);
+        //showToast(data.message || `站点 ${domain} 已成功删除并触发hosts更新。`, 'success');
+        loadCustomAcceleratedSites(); // 刷新列表
+        loadCurrentHosts(); // 更新当前hosts显示
+    })
+    .catch(error => {
+        hideProgressModal();
+        console.error(`删除自定义加速站点 ${domain} 失败:`, error);
+        showErrorModal('删除失败', error.message || `删除站点 ${domain} 时发生未知错误。`);
+        //showToast(`删除站点 ${domain} 失败: ` + error.message, 'danger');
+    });
+}
+// ----- 自定义站点加速功能 END -----
