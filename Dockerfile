@@ -7,7 +7,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制CloudflareSpeedTest
-COPY CloudflareST_linux_amd64/CloudflareST /usr/local/bin/
+COPY CloudflareST_linux_arm64/CloudflareST /usr/local/bin/
 RUN chmod +x /usr/local/bin/CloudflareST
 
 # 复制应用代码
